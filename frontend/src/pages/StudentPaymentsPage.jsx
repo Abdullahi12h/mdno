@@ -1,0 +1,571 @@
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { CreditCard, History, Search, Printer, Trash2 } from 'lucide-react';
+import api from '../utils/api';
+
+const StudentPaymentsPage = () => {
+    const location = useLocation();
+    const urlStudentId = new URLSearchParams(location.search).get('studentId');
+    const [students, setStudents] = useState([]);
+    const [payments, setPayments] = useState([]);
+    const [classes, setClasses] = useState([]);
+    const [selectedClassId, setSelectedClassId] = useState('');
+    const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+    const [amount, setAmount] = useState('');
+    const [description, setDescription] = useState('');
+    const [selectedStudentFinances, setSelectedStudentFinances] = useState({ fees: [], debts: [] });
+    const [loading, setLoading] = useState(false);
+    const [editPayment, setEditPayment] = useState(null);
+    const [editAmount, setEditAmount] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editDate, setEditDate] = useState('');
+
+    useEffect(() => {
+        Promise.all([
+            api.get('/core/classes').then(res => setClasses(res.data)),
+            api.get('/users/students?status=Active').then(res => {
+                const data = res.data;
+                setStudents(data);
+                // Auto-select student from URL param
+                if (urlStudentId) {
+                    const found = data.find(s => s._id === urlStudentId);
+                    if (found) {
+                        setSelectedStudentId(found._id);
+                        const classId = found.classId?._id || found.classId || '';
+                        if (classId) setSelectedClassId(classId);
+                    }
+                }
+            })
+        ]).catch(console.error);
+    }, [urlStudentId]);
+
+    useEffect(() => {
+        const fetchStudentFinances = async () => {
+            if (!selectedStudentId) {
+                setSelectedStudentFinances({ fees: [], debts: [] });
+                return;
+            }
+            try {
+                const [fRes, dRes] = await Promise.all([
+                    api.get(`/management/fees?studentId=${selectedStudentId}`),
+                    api.get(`/management/debts?studentId=${selectedStudentId}`)
+                ]);
+                setSelectedStudentFinances({
+                    fees: Array.isArray(fRes.data) ? fRes.data : [],
+                    debts: Array.isArray(dRes.data) ? dRes.data : []
+                });
+            } catch (err) {
+                console.error('Error fetching student finances:', err);
+            }
+        };
+        fetchStudentFinances();
+    }, [selectedStudentId]);
+
+    const fetchPayments = async () => {
+        try {
+            const query = new URLSearchParams({
+                ...(selectedClassId && { classId: selectedClassId }),
+                ...(selectedMonth && { month: selectedMonth }),
+                ...(selectedYear && { year: selectedYear }),
+            }).toString();
+            const res = await api.get(`/management/student-payments?${query}`);
+            setPayments(res.data);
+        } catch (error) {
+            console.error('Error fetching payments:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchPayments();
+    }, [selectedClassId, selectedMonth, selectedYear]);
+
+    const selectedStudent = students.find(s => s._id === selectedStudentId);
+
+    // Accurate balance calculation based on records
+    const totalFeesOwed = selectedStudentFinances.fees.reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+    const totalDebtsOwed = selectedStudentFinances.debts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    
+    // Total Ever Owed = sum of all historical fees + any current debts. 
+    // If no fees records exist yet (new student), assume baseline monthly rate.
+    const baseAmount = Number(selectedStudent?.amount) || 0;
+    const totalEverOwed = Math.max(totalFeesOwed, baseAmount) + totalDebtsOwed;
+    
+    const totalPaid = Number(selectedStudent?.totalPaid) || 0;
+    const remainingBalance = totalEverOwed - totalPaid;
+
+    // Auto-fill amount when totals are calculated
+    useEffect(() => {
+        if (selectedStudentId && remainingBalance > 0) {
+            setAmount(remainingBalance.toString());
+        } else if (!selectedStudentId) {
+            setAmount('');
+        }
+    }, [selectedStudentId, remainingBalance]);
+
+
+    const handlePayment = async (e) => {
+        e.preventDefault();
+        if (!selectedStudentId || !amount || amount <= 0) return alert('Enter a valid amount and select a student.');
+
+        setLoading(true);
+        try {
+            await api.post('/management/student-payments', {
+                studentId: selectedStudentId,
+                amount: Number(amount),
+                description: description.trim(),
+            });
+            // Refresh data
+            const [studentsRes, paymentsRes] = await Promise.all([
+                api.get('/users/students?status=Active'),
+                api.get('/management/student-payments')
+            ]);
+            setStudents(studentsRes.data);
+            setPayments(paymentsRes.data);
+            // Re-fetch specific student finances too
+            const [fRes, dRes] = await Promise.all([
+                api.get(`/management/fees?studentId=${selectedStudentId}`),
+                api.get(`/management/debts?studentId=${selectedStudentId}`)
+            ]);
+            setSelectedStudentFinances({
+                fees: Array.isArray(fRes.data) ? fRes.data : [],
+                debts: Array.isArray(dRes.data) ? dRes.data : []
+            });
+            setAmount('');
+            setDescription('');
+            alert('Payment recorded successfully!');
+        } catch (error) {
+            alert(error.response?.data?.message || 'Error processing payment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeletePayment = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this payment? This will also update the student\'s remaining balance.')) return;
+
+        try {
+            await api.delete(`/management/student-payments/${id}`);
+            // Refresh
+            fetchPayments();
+            // Also refresh student info if one is selected
+            if (selectedStudentId) {
+                const studentsRes = await api.get('/users/students?status=Active');
+                setStudents(studentsRes.data);
+                const [fRes, dRes] = await Promise.all([
+                    api.get(`/management/fees?studentId=${selectedStudentId}`),
+                    api.get(`/management/debts?studentId=${selectedStudentId}`)
+                ]);
+                setSelectedStudentFinances({
+                    fees: Array.isArray(fRes.data) ? fRes.data : [],
+                    debts: Array.isArray(dRes.data) ? dRes.data : []
+                });
+            }
+            alert('Payment deleted successfully');
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert(error.response?.data?.message || error.message || 'Error deleting payment');
+        }
+    };
+
+    const handleEditPayment = (payment) => {
+        setEditPayment(payment);
+        setEditAmount(payment.amount.toString());
+        setEditDescription(payment.description || '');
+        setEditDate(new Date(payment.paymentDate).toISOString().split('T')[0]);
+    };
+
+    const submitEdit = async (e) => {
+        e.preventDefault();
+        if (!editAmount || editAmount <= 0) return alert('Enter a valid amount.');
+        setLoading(true);
+        try {
+            await api.put(`/management/student-payments/${editPayment._id}`, {
+                amount: Number(editAmount),
+                description: editDescription.trim(),
+                paymentDate: editDate
+            });
+            setEditPayment(null);
+            fetchPayments();
+            if (selectedStudentId) {
+                const studentsRes = await api.get('/users/students?status=Active');
+                setStudents(studentsRes.data);
+            }
+            alert('Payment updated successfully');
+        } catch (error) {
+            alert(error.response?.data?.message || 'Error updating payment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePrintReceipt = (payment) => {
+        const printWindow = window.open('', '_blank');
+        const content = `
+            <html>
+                <head>
+                    <title>Receipt - ${payment.receiptNumber}</title>
+                    <style>
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #334155; }
+                        .receipt-box { border: 2px solid #e2e8f0; padding: 40px; max-width: 600px; margin: 40px auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+                        .header { text-align: center; border-bottom: 2px solid #3b82f6; margin-bottom: 30px; padding-bottom: 20px; }
+                        .header h1 { color: #1e293b; margin: 0; font-size: 28px; letter-spacing: -0.025em; }
+                        .header p { color: #64748b; margin: 5px 0 0 0; font-weight: 500; }
+                        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+                        .info-item { display: flex; flex-direction: column; }
+                        .label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px; }
+                        .value { font-size: 15px; font-weight: 600; color: #1e293b; }
+                        .amount-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0; }
+                        .amount-label { font-size: 14px; font-weight: 600; color: #3b82f6; margin-bottom: 5px; }
+                        .amount-value { font-size: 32px; font-weight: 800; color: #1d4ed8; }
+                        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center; }
+                        .footer p { font-size: 12px; color: #94a3b8; margin: 0; }
+                        .signature-line { margin-top: 50px; border-top: 1px solid #cbd5e1; width: 200px; margin-left: auto; margin-right: auto; padding-top: 8px; font-size: 12px; font-weight: 600; color: #64748b; }
+                        @media print {
+                            body { background: white; padding: 0; }
+                            .receipt-box { box-shadow: none; border: 2px solid #000; margin: 0 auto; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="receipt-box">
+                        <div class="header">
+                            <img src="/assets/logo.jpg" style="height: 80px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;" />
+                            <h1>AL-HAFID SKILLS</h1>
+                            <p>Official Payment Receipt</p>
+                        </div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="label">Receipt Number</span>
+                                <span class="value">${payment.receiptNumber}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Date Issued</span>
+                                <span class="value">${new Date(payment.paymentDate).toLocaleDateString()}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Student Name</span>
+                                <span class="value">${payment.studentId?.user?.name || 'N/A'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Enrollment No</span>
+                                <span class="value">${payment.studentId?.enrollmentNo || 'N/A'}</span>
+                            </div>
+                            <div class="info-item" style="grid-column: span 2;">
+                                <span class="label">Course/Class</span>
+                                <span class="value">${payment.studentId?.classId?.name || 'N/A'} (${payment.studentId?.skillId?.name || 'N/A'})</span>
+                            </div>
+                        </div>
+                        <div class="amount-box">
+                            <div class="amount-label">TOTAL AMOUNT PAID</div>
+                            <div class="amount-value">$${payment.amount}</div>
+                        </div>
+                        <div class="footer">
+                            <p>Thank you for choosing Al-Hafid Skills!</p>
+                            <div class="signature-line">Authorized Signatory</div>
+                        </div>
+                    </div>
+                    <script>
+                        window.onload = function() { 
+                            window.print(); 
+                            setTimeout(function() { window.close(); }, 500);
+                        }
+                    </script>
+                </body>
+            </html>
+        `;
+        printWindow.document.write(content);
+        printWindow.document.close();
+    };
+
+    const studentPaymentsHistory = payments.filter(p => p.studentId?._id === selectedStudentId);
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
+                <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
+                    <CreditCard className="w-6 h-6" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold text-slate-800 tracking-tight">Student Payments</h1>
+                    <p className="text-sm text-slate-500">Record part-payments and track balances</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+
+                    {/* Payment Form */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <h2 className="font-bold text-slate-700">Record Payment</h2>
+                        </div>
+                        <form onSubmit={handlePayment} className="p-5 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Select Class</label>
+                                <select
+                                    className="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                    value={selectedClassId}
+                                    onChange={(e) => {
+                                        setSelectedClassId(e.target.value);
+                                        setSelectedStudentId('');
+                                        setAmount('');
+                                    }}
+                                >
+                                    <option value="">-- Choose a Class --</option>
+                                    {classes.map(c => (
+                                        <option key={c._id} value={c._id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Select Student</label>
+                                <select
+                                    className="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50"
+                                    value={selectedStudentId}
+                                    onChange={(e) => { setSelectedStudentId(e.target.value); setAmount(''); }}
+                                    disabled={!selectedClassId}
+                                >
+                                    <option value="">-- Choose a Student --</option>
+                                    {students.filter(s => selectedClassId ? (s.classId?._id === selectedClassId || s.classId === selectedClassId) : true).map(s => (
+                                        <option key={s._id} value={s._id}>{s.user?.name} ({s.enrollmentNo})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedStudent && (
+                                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-500 font-medium">Total Ever Owed (Wadarta):</span>
+                                        <span className="font-bold text-slate-800 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">${totalEverOwed}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-500 font-medium">Total Paid (Bixisay):</span>
+                                        <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">${totalPaid}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-50 pt-3 mt-1">
+                                        <span className="text-slate-700 font-black uppercase tracking-tight text-[11px]">
+                                            {remainingBalance > 0 ? 'Remaining Debt' : 'Balances'}
+                                        </span>
+                                        <span className={`font-black text-lg px-3 py-1 rounded-xl shadow-sm border ${remainingBalance > 0 ? 'text-red-600 bg-red-50 border-red-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100'}`}>
+                                            ${Math.abs(remainingBalance)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Amount ($)</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    disabled={!selectedStudent}
+                                    className="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    placeholder="Enter amount..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Sharaxaad (Description)</label>
+                                <input
+                                    type="text"
+                                    disabled={!selectedStudent}
+                                    className="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50"
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="e.g. Monthly fee, Partial payment..."
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={!selectedStudent || loading || !amount}
+                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                            >
+                                {loading ? 'Processing...' : 'Submit Payment'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                {/* History Table */}
+                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="flex items-center space-x-2 text-slate-700 font-bold">
+                            <History className="w-5 h-5 text-slate-400" />
+                            <h2>
+                                Payment History
+                                {selectedStudent ? ` for ${selectedStudent.user?.name}` :
+                                    selectedClassId ? ` for ${classes.find(c => c._id === selectedClassId)?.name || ''}` :
+                                        ' (Filtered List)'}
+                            </h2>
+                        </div>
+                        <div className="flex items-center space-x-3 no-print">
+                            <select
+                                className="p-1.5 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                            >
+                                <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6">June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                            <select
+                                className="p-1.5 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold"
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                            >
+                                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                            <button
+                                onClick={() => window.print()}
+                                className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center shadow-sm"
+                            >
+                                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                                Print Report
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-auto p-0">
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Receipt</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Student</th>
+                                    {!selectedStudent && <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Class</th>}
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
+                                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider no-print">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {(() => {
+                                    // Payments are now server-filtered, so we just display 'payments'
+                                    let filtered = payments;
+
+                                    // If a specific student is selected, we might still want to filter locally 
+                                    // if the backend returned more (though with the current useEffect it's already filtered)
+                                    if (selectedStudentId) {
+                                        filtered = payments.filter(p => p.studentId?._id === selectedStudentId || p.studentId === selectedStudentId);
+                                    }
+
+                                    if (filtered.length === 0) {
+                                        return (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-sm">
+                                                    No payment history found.
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    return filtered.slice().reverse().map(payment => (
+                                        <tr key={payment._id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                                                {new Date(payment.paymentDate).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500">
+                                                {payment.receiptNumber}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800 font-medium">
+                                                {payment.studentId?.user?.name || (typeof payment.studentId === 'string' ? `ID: ${payment.studentId.slice(-4)}` : 'Unknown')}
+                                            </td>
+                                            {!selectedStudent && (
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">
+                                                    <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 uppercase">
+                                                        {payment.studentId?.classId?.name || (payment.classId?.name) || '-'}
+                                                    </span>
+                                                </td>
+                                            )}
+                                            <td className="px-6 py-4 text-sm text-slate-500 max-w-[160px]">
+                                                {payment.description
+                                                    ? <span className="italic text-slate-600">{payment.description}</span>
+                                                    : <span className="text-slate-300">—</span>
+                                                }
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-right">
+                                                +${payment.amount}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right no-print flex justify-end items-center gap-3">
+                                                <button
+                                                    onClick={() => handlePrintReceipt(payment)}
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100 bg-white shadow-sm"
+                                                    title="Print Receipt"
+                                                >
+                                                    <Printer className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEditPayment(payment)}
+                                                    className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-amber-100 bg-white shadow-sm"
+                                                    title="Edit Payment"
+                                                >
+                                                    <Search className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const pId = payment._id || payment.id;
+                                                        if (!pId) return alert('Error: Payment ID missing!');
+                                                        handleDeletePayment(pId);
+                                                    }}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-100 bg-white shadow-sm"
+                                                    title="Delete Payment"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ));
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {/* Edit Modal */}
+            {editPayment && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="bg-amber-600 px-6 py-4 flex items-center justify-between text-white">
+                            <h2 className="font-bold">Edit Payment</h2>
+                            <button onClick={() => setEditPayment(null)} className="hover:bg-white/10 p-1 rounded-lg"><Trash2 className="h-5 w-5 rotate-45" /></button>
+                        </div>
+                        <form onSubmit={submitEdit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Amount ($)</label>
+                                <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                                <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setEditPayment(null)} className="flex-1 py-2 border rounded-xl hover:bg-slate-50 font-semibold">Cancel</button>
+                                <button type="submit" disabled={loading} className="flex-1 py-2 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700">{loading ? 'Updating...' : 'Save Changes'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default StudentPaymentsPage;
