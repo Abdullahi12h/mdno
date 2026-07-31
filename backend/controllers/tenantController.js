@@ -38,9 +38,20 @@ export const createTenant = async (req, res) => {
     try {
         const { name, code, email, phone, address, logo, adminName, adminUsername, adminPassword, subscriptionDays } = req.body;
 
+        if (!name || !code) {
+            return res.status(400).json({ message: 'Name and Code are required' });
+        }
+
         const existingTenant = await Tenant.findOne({ code: code.toLowerCase().trim() });
         if (existingTenant) {
-            return res.status(400).json({ message: 'Tenant code / identifier already exists' });
+            return res.status(400).json({ message: 'Dugsi leh code-kan hore ayaa u jira (Code already exists)' });
+        }
+
+        if (adminUsername) {
+            const existingUser = await User.findOne({ username: adminUsername });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Username-ka Admin-ka hore ayaa loo isticmaalay' });
+            }
         }
 
         const days = subscriptionDays ? parseInt(subscriptionDays) : 30;
@@ -59,11 +70,6 @@ export const createTenant = async (req, res) => {
 
         let adminUser = null;
         if (adminUsername && adminPassword) {
-            const existingUser = await User.findOne({ username: adminUsername });
-            if (existingUser) {
-                return res.status(400).json({ message: 'Admin username already taken' });
-            }
-
             adminUser = await User.create({
                 name: adminName || `${name} Admin`,
                 username: adminUsername,
