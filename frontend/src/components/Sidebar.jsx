@@ -2,7 +2,7 @@ import { NavLink, Link } from 'react-router-dom';
 import {
     LayoutDashboard, BookOpen, Layers, Users, Building,
     GraduationCap, ClipboardList, Wallet, FileText, CheckSquare,
-    UserSquare, Database, X, MessageCircle, ClipboardCheck
+    UserSquare, Database, X, MessageCircle, ClipboardCheck, ShieldAlert
 } from 'lucide-react';
 
 const Sidebar = ({ role, isOpen, toggle }) => {
@@ -19,7 +19,7 @@ const Sidebar = ({ role, isOpen, toggle }) => {
         {
             title: 'Academic Setup',
             links: [
-                { name: 'Skills', path: '/skills', icon: BookOpen },
+                { name: 'Maadooyinka', path: '/skills', icon: BookOpen },
                 { name: 'Classes', path: '/classes', icon: Building },
                 { name: 'Batches', path: '/batches', icon: Users },
                 { name: 'Subjects', path: '/subjects', icon: BookOpen },
@@ -100,7 +100,24 @@ const Sidebar = ({ role, isOpen, toggle }) => {
                     </button>
                 </div>
                 <nav className="flex-1 overflow-y-auto py-4 space-y-4">
-                    {role === 'Admin' ? (
+                    {role === 'SuperAdmin' ? (
+                        <div className="px-4 py-2">
+                            <NavLink
+                                to="/super-admin"
+                                onClick={toggle}
+                                className={({ isActive }) =>
+                                    `flex items-center px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-md ${
+                                        isActive
+                                            ? 'bg-amber-400 text-slate-900'
+                                            : 'bg-amber-500/20 text-amber-300 border border-amber-400/40 hover:bg-amber-500/30'
+                                    }`
+                                }
+                            >
+                                <ShieldAlert className="mr-3 h-5 w-5 text-amber-400" />
+                                Xir / Fura System-ka
+                            </NavLink>
+                        </div>
+                    ) : role === 'Admin' ? (
                         adminSections.map((section) => (
                             <div key={section.title} className="space-y-1">
                                 <h3 className="px-6 text-[10px] font-bold text-blue-200/50 uppercase tracking-widest">

@@ -4,19 +4,19 @@ import { useNavigate } from 'react-router-dom';
 
 export const SkillsPage = () => (
     <CrudPage
-        title="Skills"
+        title="Maadooyinka"
         endpoint="/core/skills"
         roleAccess={['Admin']}
         transformEditData={(item) => ({
             ...item
         })}
         columns={[
-            { header: 'Name', accessor: 'name' },
-            { header: 'Description', accessor: 'description' }
+            { header: 'Magaca Maadada', accessor: 'name' },
+            { header: 'Faahfaahinta', accessor: 'description' }
         ]}
         formFields={[
-            { name: 'name', label: 'Skill Name', required: true },
-            { name: 'description', label: 'Description' }
+            { name: 'name', label: 'Magaca Maadada', required: true },
+            { name: 'description', label: 'Faahfaahinta' }
         ]}
     />
 );

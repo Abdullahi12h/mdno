@@ -15,9 +15,14 @@ import path from 'path';
 import { Server } from 'socket.io';
 import http from 'http';
 
+import systemRoutes from './routes/systemRoutes.js';
+import { seedSuperAdmin } from './utils/seedSuperAdmin.js';
+
 dotenv.config();
 
-connectDB();
+connectDB().then(() => {
+    seedSuperAdmin();
+});
 
 // Initialize chron jobs
 graduationJob();
@@ -100,6 +105,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/assignments', assignmentRoutes);
+app.use('/api/system', systemRoutes);
 
 const __dirname = path.resolve();
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

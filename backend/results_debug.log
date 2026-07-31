@@ -3190,3 +3190,13 @@
 [2026-03-11T20:20:43.732Z] [getFees] Query: {"studentId":"69aa6880d9c7b7571c7eae6e"}
 [2026-03-11T20:20:43.733Z] [getFees] DB Query: {}
 [2026-03-11T20:20:44.664Z] [getFees] Found 43 fees. First ID: 69b1b17d08f550b5c7610bdc
+[2026-07-27T07:54:30.771Z] [getResults] START - User: 6a670dca4b9874ba76ab8874, Role: Admin
+[2026-07-27T07:54:30.809Z] [getResults] Found 0 total results. Pre-filtering for valid subjects...
+[2026-07-27T07:54:30.811Z] [getResults] Filtered to 0 results after strict subject validation
+[2026-07-27T07:54:30.814Z] [getResults] Calculating ranks for 0 filtered results
+[2026-07-27T07:54:30.816Z] [getResults] Returning 0 results with ranks
+[2026-07-31T08:45:10.457Z] [getResults] START - User: 6a670dca4b9874ba76ab8874, Role: Admin
+[2026-07-31T08:45:10.497Z] [getResults] Found 0 total results. Pre-filtering for valid subjects...
+[2026-07-31T08:45:10.501Z] [getResults] Filtered to 0 results after strict subject validation
+[2026-07-31T08:45:10.506Z] [getResults] Calculating ranks for 0 filtered results
+[2026-07-31T08:45:10.509Z] [getResults] Returning 0 results with ranks

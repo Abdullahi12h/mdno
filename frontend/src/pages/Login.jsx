@@ -23,7 +23,11 @@ const Login = () => {
         try {
             const result = await login(username, password);
             if (result.success) {
-                navigate('/');
+                if (result.user?.role === 'SuperAdmin') {
+                    navigate('/super-admin');
+                } else {
+                    navigate('/');
+                }
             } else {
                 const nextAttempts = attempts + 1;
                 setAttempts(nextAttempts);

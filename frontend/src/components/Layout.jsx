@@ -1,20 +1,39 @@
 import { Outlet, Navigate, Link } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import useAuthStore from '../store/useAuthStore';
+import SystemLockOverlay from './SystemLockOverlay';
 import { LogOut, User as UserIcon, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const Layout = () => {
     const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
+    const systemStatus = useAuthStore((state) => state.systemStatus);
+    const fetchSystemStatus = useAuthStore((state) => state.fetchSystemStatus);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    useEffect(() => {
+        fetchSystemStatus();
+        const interval = setInterval(fetchSystemStatus, 10000); // Check lock status every 10s
+        return () => clearInterval(interval);
+    }, [fetchSystemStatus]);
 
     if (!user) {
         return <Navigate to="/login" replace />;
     }
 
+    const isLockedForUser = systemStatus?.isLocked && user.role !== 'SuperAdmin';
+
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden relative print:h-auto print:bg-white print:overflow-visible">
+            {isLockedForUser && (
+                <SystemLockOverlay
+                    title={systemStatus.title}
+                    message={systemStatus.message}
+                    codeText={systemStatus.codeText}
+                />
+            )}
+
             <div className="no-print">
                 <Sidebar role={user.role} isOpen={sidebarOpen} toggle={() => setSidebarOpen(!sidebarOpen)} />
             </div>

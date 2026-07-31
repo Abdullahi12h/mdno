@@ -48,7 +48,7 @@ export const optionalProtect = async (req, res, next) => {
 };
 
 export const admin = (req, res, next) => {
-    if (req.user && req.user.role === 'Admin') {
+    if (req.user && (req.user.role === 'Admin' || req.user.role === 'SuperAdmin')) {
         next();
     } else {
         console.warn(`[admin] Auth failed for user ${req.user?._id}, role: ${req.user?.role}`);
@@ -57,10 +57,20 @@ export const admin = (req, res, next) => {
 };
 
 export const teacherOrAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Teacher')) {
+    if (req.user && (req.user.role === 'Admin' || req.user.role === 'Teacher' || req.user.role === 'SuperAdmin')) {
         next();
     } else {
         console.warn(`[teacherOrAdmin] Auth failed for user ${req.user?._id}, role: ${req.user?.role}`);
         res.status(403).json({ message: 'Not authorized. Requires Teacher or Admin role.' });
     }
 };
+
+export const superAdmin = (req, res, next) => {
+    if (req.user && req.user.role === 'SuperAdmin') {
+        next();
+    } else {
+        console.warn(`[superAdmin] Auth failed for user ${req.user?._id}, role: ${req.user?.role}`);
+        res.status(403).json({ message: 'Not authorized as Super Admin' });
+    }
+};
+
