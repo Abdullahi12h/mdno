@@ -1,11 +1,12 @@
 import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { getTenantFilter, applyTenantId } from '../utils/tenantHelper.js';
 
 // Get all teachers
 export const getTeachers = async (req, res) => {
     try {
-        const teachers = await Teacher.find({})
+        const teachers = await Teacher.find(getTenantFilter(req))
             .populate('user', 'name username phone whatsapp')
             .populate('subjects', 'name')
             .populate({
@@ -22,19 +23,20 @@ export const getTeachers = async (req, res) => {
 export const createTeacher = async (req, res) => {
     try {
         const { name, username, password, phone, whatsapp, subjectId, subjects, salary, photo, cv, address, educationLevel, specialization, experience, gender, skills, classIds } = req.body;
+        const tenantId = req.user?.tenantId || req.body.tenantId || null;
 
         // Create user first
         let user = await User.findOne({ username });
         if (user) {
             return res.status(400).json({ message: 'User already exists' });
         }
-        user = await User.create({ name, username, password, role: 'Teacher', phone, whatsapp });
+        user = await User.create({ name, username, password, role: 'Teacher', phone, whatsapp, tenantId });
 
         // Limit classIds and subjects to max 6
         const limitedClassIds = Array.isArray(classIds) ? classIds.slice(0, 6) : [];
         const limitedSubjects = Array.isArray(subjects) ? subjects.slice(0, 6) : [];
 
-        const teacher = await Teacher.create({
+        const teacherData = applyTenantId({
             user: user._id,
             teacherId: `TCH-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 100)}`,
             subjectId,
@@ -44,7 +46,9 @@ export const createTeacher = async (req, res) => {
             plainPassword: password,
             skills,
             classIds: limitedClassIds
-        });
+        }, req);
+
+        const teacher = await Teacher.create(teacherData);
         res.status(201).json(teacher);
     } catch (error) { res.status(400).json({ message: error.message }); }
 };

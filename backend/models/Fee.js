@@ -7,7 +7,8 @@ const feeSchema = new mongoose.Schema({
     status: { type: String, enum: ['Paid', 'Pending'], default: 'Pending' },
     month: { type: Number, required: true },
     year: { type: Number, required: true },
-    dueDate: { type: Date }
+    dueDate: { type: Date },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Fee', feeSchema);

@@ -48,9 +48,16 @@ const Layout = () => {
                             >
                                 <Menu className="h-6 w-6" />
                             </button>
-                            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 truncate max-w-[150px] sm:max-w-none">
-                                Al-Hafid Skill System
-                            </h1>
+                            <div className="flex items-center space-x-2">
+                                <h1 className="text-lg sm:text-xl font-semibold text-slate-900 truncate max-w-[150px] sm:max-w-none">
+                                    Al-Hafid Skill System
+                                </h1>
+                                {user.tenant && (
+                                    <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                                        🏫 {user.tenant.name}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center space-x-2 sm:space-x-4">
                             <div className="hidden sm:flex items-center space-x-2 text-slate-600">

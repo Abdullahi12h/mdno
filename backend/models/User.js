@@ -28,6 +28,11 @@ const userSchema = new mongoose.Schema(
         whatsapp: {
             type: String,
         },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tenant',
+            default: null,
+        },
     },
     {
         timestamps: true,

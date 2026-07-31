@@ -13,7 +13,8 @@ const resultSchema = new mongoose.Schema({
     total: { type: Number, default: 0 },
 
     marksObtained: { type: Number }, // Legacy field
-    isLocked: { type: Boolean, default: false }
+    isLocked: { type: Boolean, default: false },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null }
 }, { timestamps: true });
 
 // Pre-save hook to calculate total

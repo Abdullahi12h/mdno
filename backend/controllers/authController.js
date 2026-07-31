@@ -28,11 +28,26 @@ export const authUser = async (req, res) => {
                 }
             }
 
+            let tenant = null;
+            if (user.tenantId && user.role !== 'SuperAdmin') {
+                const { default: Tenant } = await import('../models/Tenant.js');
+                tenant = await Tenant.findById(user.tenantId);
+                if (tenant && (tenant.status === 'locked' || tenant.status === 'suspended')) {
+                    return res.status(403).json({
+                        message: 'Dugsigaaga waa xiran yahay ama rukumadii waa ka dhacday. Fadlan iska bixi lacagta dugsiga.',
+                        isTenantLocked: true,
+                        tenantName: tenant.name,
+                    });
+                }
+            }
+
             res.json({
                 _id: user._id,
                 name: user.name,
                 username: user.username,
                 role: user.role,
+                tenantId: user.tenantId || null,
+                tenant: tenant ? { id: tenant._id, name: tenant.name, logo: tenant.logo } : null,
                 classIds,
                 skills,
                 subjects,
@@ -63,13 +78,16 @@ export const registerUser = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
+        const tenantId = req.user?.tenantId || req.body.tenantId || null;
+
         const user = await User.create({
             name,
             username,
             password,
             role: role || 'Student',
             phone,
-            whatsapp
+            whatsapp,
+            tenantId
         });
 
         // If registering a Student, create link to Student collection and Fee
@@ -87,12 +105,13 @@ export const registerUser = async (req, res) => {
                 dateOfBirth,
                 age,
                 photo,
-                plainPassword: password
+                plainPassword: password,
+                tenantId
             });
 
             if (amount) {
                 const { default: Fee } = await import('../models/Fee.js');
-                await Fee.create({ studentId: student._id, amount, status: 'Paid' });
+                await Fee.create({ studentId: student._id, amount, status: 'Paid', tenantId });
             }
         } else if (user.role === 'Teacher') {
             const { default: Teacher } = await import('../models/Teacher.js');
@@ -107,7 +126,8 @@ export const registerUser = async (req, res) => {
                 specialization,
                 experience,
                 gender,
-                plainPassword: password
+                plainPassword: password,
+                tenantId
             });
         }
 

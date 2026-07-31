@@ -101,7 +101,21 @@ const Sidebar = ({ role, isOpen, toggle }) => {
                 </div>
                 <nav className="flex-1 overflow-y-auto py-4 space-y-4">
                     {role === 'SuperAdmin' ? (
-                        <div className="px-4 py-2">
+                        <div className="px-4 py-2 space-y-2">
+                            <NavLink
+                                to="/tenants"
+                                onClick={toggle}
+                                className={({ isActive }) =>
+                                    `flex items-center px-4 py-3 rounded-xl font-bold text-sm transition-all shadow-md ${
+                                        isActive
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-blue-600/30 text-blue-200 border border-blue-400/30 hover:bg-blue-600/50'
+                                    }`
+                                }
+                            >
+                                <Building className="mr-3 h-5 w-5 text-blue-300" />
+                                Maamulka Dugsiyada (Tenants)
+                            </NavLink>
                             <NavLink
                                 to="/super-admin"
                                 onClick={toggle}
@@ -114,7 +128,19 @@ const Sidebar = ({ role, isOpen, toggle }) => {
                                 }
                             >
                                 <ShieldAlert className="mr-3 h-5 w-5 text-amber-400" />
-                                Xir / Fura System-ka
+                                Lock / Unlock System-ka
+                            </NavLink>
+                            <NavLink
+                                to="/"
+                                onClick={toggle}
+                                className={({ isActive }) =>
+                                    `flex items-center px-4 py-3 rounded-xl font-bold text-sm transition-all ${
+                                        isActive ? 'bg-emerald-500 text-white' : 'text-blue-100 hover:bg-blue-700/50'
+                                    }`
+                                }
+                            >
+                                <LayoutDashboard className="mr-3 h-5 w-5" />
+                                Global Dashboard
                             </NavLink>
                         </div>
                     ) : role === 'Admin' ? (

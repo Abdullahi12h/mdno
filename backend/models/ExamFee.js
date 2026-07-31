@@ -6,7 +6,8 @@ const examFeeSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     paymentDate: { type: Date, default: Date.now },
     receiptNumber: { type: String },
-    description: { type: String, default: 'Exam Fee' }
+    description: { type: String, default: 'Exam Fee' },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null }
 }, { timestamps: true });
 
 export default mongoose.model('ExamFee', examFeeSchema);

@@ -1,15 +1,15 @@
 import Class from '../models/Class.js';
+import { getTenantFilter, applyTenantId } from '../utils/tenantHelper.js';
 
 export const getClasses = async (req, res) => {
     try {
-        let query = {};
+        let query = { ...getTenantFilter(req) };
         if (req.user && req.user.role === 'Teacher') {
             const { default: Teacher } = await import('../models/Teacher.js');
             const teacher = await Teacher.findOne({ user: req.user._id }).populate('subjectId subjects');
 
             if (teacher) {
                 const assignedClasses = (teacher.classIds || []).map(id => id.toString());
-                // Also include classes from assigned subjects just in case
                 if (teacher.subjects && teacher.subjects.length > 0) {
                     teacher.subjects.forEach(sub => {
                         const cid = sub.classId?.toString() || sub.toString();
@@ -29,7 +29,8 @@ export const getClasses = async (req, res) => {
 export const createClass = async (req, res) => {
     try {
         const { name, description, skillId } = req.body;
-        const classItem = await Class.create({ name, description, skillId });
+        const classData = applyTenantId({ name, description, skillId }, req);
+        const classItem = await Class.create(classData);
         res.status(201).json(classItem);
     } catch (error) { res.status(400).json({ message: error.message }); }
 };

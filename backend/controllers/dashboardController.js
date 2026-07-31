@@ -8,10 +8,12 @@ import StudentPayment from '../models/StudentPayment.js';
 import SalaryPayment from '../models/SalaryPayment.js';
 import ExamFee from '../models/ExamFee.js';
 import Fee from '../models/Fee.js';
+import { getTenantFilter } from '../utils/tenantHelper.js';
 
 export const getDashboardStats = async (req, res) => {
     try {
-        const { period } = req.query; // 'weekly', 'monthly', 'yearly', or 'all'
+        const { period } = req.query;
+        const tenantFilter = getTenantFilter(req);
 
         let dateFilter = null;
         if (period === 'weekly') {
@@ -22,24 +24,20 @@ export const getDashboardStats = async (req, res) => {
             const d = new Date(); d.setFullYear(d.getFullYear() - 1); dateFilter = { $gte: d };
         }
 
-        const paymentQuery = dateFilter ? { paymentDate: dateFilter } : {};
-        const expenseQuery = dateFilter ? { date: dateFilter } : {};
-        const salaryQuery = dateFilter ? { paymentDate: dateFilter } : {};
-        const creationQuery = dateFilter ? { createdAt: dateFilter } : {}; // Used for general counting of users/objects
+        const paymentQuery = { ...tenantFilter, ...(dateFilter ? { paymentDate: dateFilter } : {}) };
+        const expenseQuery = { ...tenantFilter, ...(dateFilter ? { date: dateFilter } : {}) };
+        const salaryQuery = { ...tenantFilter, ...(dateFilter ? { paymentDate: dateFilter } : {}) };
+        const creationQuery = { ...tenantFilter, ...(dateFilter ? { createdAt: dateFilter } : {}) };
         
-        // Fee query for "Owed" - we consider pending fees
-        // If there's a period, maybe we only want pending fees from that period
-        const feeQuery = { status: 'Pending' };
-        if (dateFilter) feeQuery.createdAt = dateFilter;
+        const feeQuery = { ...tenantFilter, status: 'Pending', ...(dateFilter ? { createdAt: dateFilter } : {}) };
 
         const totalStudents = await Student.countDocuments(creationQuery);
         const totalTeachers = await Teacher.countDocuments(creationQuery);
 
-        // Use actual salary payments for totalSalaries if they exist or if filtering by date, else fall back to theoretical for all.
         const salaryPayments = await SalaryPayment.find(salaryQuery);
         const totalSalaries = salaryPayments.length > 0 || dateFilter
             ? salaryPayments.reduce((acc, p) => acc + (p.amount || 0), 0)
-            : (await Teacher.find({})).reduce((acc, t) => acc + (t.salary || 0), 0);
+            : (await Teacher.find(tenantFilter)).reduce((acc, t) => acc + (t.salary || 0), 0);
 
         const expenses = await Expense.find(expenseQuery);
         const totalExpenses = expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
@@ -55,18 +53,18 @@ export const getDashboardStats = async (req, res) => {
         const totalOwed = pendingFees.reduce((acc, f) => acc + (f.amount || 0), 0);
 
         // Sum of monthly rates for all active students (Target Revenue)
-        const activeStudents = await Student.find({ status: 'Active' });
+        const activeStudents = await Student.find({ ...tenantFilter, status: 'Active' });
         const expectedTotal = activeStudents.reduce((acc, s) => acc + (Number(s.amount) || 0), 0);
 
         // Sum of all-time payments stored on student records
-        const allStudents = await Student.find({});
+        const allStudents = await Student.find(tenantFilter);
         const totalDeposits = allStudents.reduce((acc, s) => acc + (Number(s.totalPaid) || 0), 0);
 
         const grandTotalIncome = totalIncome + totalExamFees;
 
         // All-time Collections
-        const allTimeSPayments = await StudentPayment.find({});
-        const allTimeEFees = await ExamFee.find({});
+        const allTimeSPayments = await StudentPayment.find(tenantFilter);
+        const allTimeEFees = await ExamFee.find(tenantFilter);
         const allTimeTotalCash = allTimeSPayments.reduce((acc, p) => acc + (p.amount || 0), 0) + 
                                 allTimeEFees.reduce((acc, f) => acc + (f.amount || 0), 0);
 

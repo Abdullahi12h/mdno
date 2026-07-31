@@ -1,11 +1,12 @@
 import Student from '../models/Student.js';
 import User from '../models/User.js';
 import Fee from '../models/Fee.js';
+import { getTenantFilter, applyTenantId } from '../utils/tenantHelper.js';
 
 export const getStudents = async (req, res) => {
     try {
         const { status, batchId } = req.query;
-        let query = {};
+        let query = { ...getTenantFilter(req) };
         if (status) query.status = status;
         if (batchId) query.batchId = batchId;
 
@@ -16,7 +17,6 @@ export const getStudents = async (req, res) => {
             if (teacherRec && teacherRec.classIds && teacherRec.classIds.length > 0) {
                 query.classId = { $in: teacherRec.classIds };
             } else if (teacherRec) {
-                // If teacher exists but has no classes, they see nothing
                 return res.json([]);
             }
         }
@@ -28,23 +28,17 @@ export const getStudents = async (req, res) => {
 
 export const createStudent = async (req, res) => {
     try {
-        console.log('[createStudent] Received body:', JSON.stringify(req.body, null, 2));
         const { name, username, password, phone, whatsapp, classId, batchId, skillId, registrationFee, amount, photo, motherName, dateOfBirth, age } = req.body;
+        const tenantId = req.user?.tenantId || req.body.tenantId || null;
 
         let user = await User.findOne({ username });
         if (user) {
-            console.log('[createStudent] User already exists:', username);
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        console.log('[createStudent] Creating user...');
-        user = await User.create({ name, username, password, role: 'Student', phone, whatsapp });
-        console.log('[createStudent] User created:', user._id);
+        user = await User.create({ name, username, password, role: 'Student', phone, whatsapp, tenantId });
 
-        console.log('[createStudent] Creating student record...');
-
-        // Find the last student to determine the next actual sequential number
-        const lastStudent = await Student.findOne().sort({ createdAt: -1 });
+        const lastStudent = await Student.findOne(getTenantFilter(req)).sort({ createdAt: -1 });
         let nextNumber = 1;
 
         if (lastStudent && lastStudent.enrollmentNo && lastStudent.enrollmentNo.startsWith('STU-')) {
@@ -54,14 +48,13 @@ export const createStudent = async (req, res) => {
                 nextNumber = parsedNum + 1;
             }
         } else {
-            // Fallback in case there are only old formats or no students
-            const studentCount = await Student.countDocuments();
+            const studentCount = await Student.countDocuments(getTenantFilter(req));
             if (studentCount > 0) nextNumber = studentCount + 1;
         }
 
-        const autoEnrollmentNo = `STU-${nextNumber.toString().padStart(4, '0')}`; // E.g., STU-0001
+        const autoEnrollmentNo = `STU-${nextNumber.toString().padStart(4, '0')}`;
 
-        const student = await Student.create({
+        const studentData = applyTenantId({
             user: user._id,
             enrollmentNo: autoEnrollmentNo,
             classId,
@@ -74,26 +67,23 @@ export const createStudent = async (req, res) => {
             dateOfBirth,
             age,
             plainPassword: password
-        });
-        console.log('[createStudent] Student created:', student._id);
+        }, req);
 
-        // Create a Pending Fee record automatically for the student's first month
+        const student = await Student.create(studentData);
+
         if (amount) {
-            console.log('[createStudent] Creating fee record...');
             const now = new Date();
-            await Fee.create({ 
+            await Fee.create(applyTenantId({ 
                 studentId: student._id, 
                 amount: Number(amount), 
                 status: 'Pending',
                 month: now.getMonth() + 1,
                 year: now.getFullYear()
-            });
-            console.log('[createStudent] Fee record created.');
+            }, req));
         }
 
         res.status(201).json(student);
     } catch (error) {
-        console.error('[createStudent] ERROR:', error);
         res.status(400).json({ message: error.message });
     }
 };

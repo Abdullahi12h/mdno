@@ -24,6 +24,11 @@ const batchSchema = new mongoose.Schema(
         isClosed: {
             type: Boolean,
             default: false
+        },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tenant',
+            default: null
         }
     },
     { timestamps: true }

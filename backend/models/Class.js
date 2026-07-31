@@ -5,7 +5,6 @@ const classSchema = new mongoose.Schema(
         name: {
             type: String,
             required: true,
-            unique: true,
         },
         description: {
             type: String,
@@ -14,6 +13,11 @@ const classSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Skill',
             required: true,
+        },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tenant',
+            default: null,
         },
     },
     { timestamps: true }

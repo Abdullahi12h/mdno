@@ -16,6 +16,7 @@ import { Server } from 'socket.io';
 import http from 'http';
 
 import systemRoutes from './routes/systemRoutes.js';
+import tenantRoutes from './routes/tenantRoutes.js';
 import { seedSuperAdmin } from './utils/seedSuperAdmin.js';
 
 dotenv.config();
@@ -106,6 +107,7 @@ app.use('/api/backup', backupRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/tenants', tenantRoutes);
 
 const __dirname = path.resolve();
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));

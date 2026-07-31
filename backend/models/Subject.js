@@ -11,6 +11,11 @@ const subjectSchema = new mongoose.Schema(
             ref: 'Class',
             required: true,
         },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tenant',
+            default: null,
+        },
     },
     { timestamps: true }
 );

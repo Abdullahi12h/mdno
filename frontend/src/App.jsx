@@ -23,6 +23,7 @@ import AssignmentPage from './pages/AssignmentPage';
 import AllUsersPage from './pages/AllUsersPage';
 import DevelopersPage from './pages/DevelopersPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import TenantManagement from './pages/TenantManagement';
 
 function App() {
   return (
@@ -36,6 +37,11 @@ function App() {
           <Route path="super-admin" element={
             <ProtectedRoute allowedRoles={['SuperAdmin']}>
               <SuperAdminDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="tenants" element={
+            <ProtectedRoute allowedRoles={['SuperAdmin']}>
+              <TenantManagement />
             </ProtectedRoute>
           } />
           <Route path="profile" element={<ProfilePage />} />

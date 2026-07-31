@@ -60,6 +60,11 @@ const studentSchema = new mongoose.Schema(
         isLocked: {
             type: Boolean,
             default: false
+        },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tenant',
+            default: null
         }
     },
     { timestamps: true }

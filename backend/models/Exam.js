@@ -7,7 +7,8 @@ const examSchema = new mongoose.Schema({
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
     date: { type: Date, required: true },
     type: { type: String, enum: ['Monthly Exam', 'Final Exam', 'Test', 'Midterm'], required: true, default: 'Monthly Exam' },
-    status: { type: String, enum: ['Open', 'Closed'], default: 'Open' }
+    status: { type: String, enum: ['Open', 'Closed'], default: 'Open' },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Exam', examSchema);

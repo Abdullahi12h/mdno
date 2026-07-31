@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
+import Tenant from '../models/Tenant.js';
+
 export const protect = async (req, res, next) => {
     let token;
 
@@ -16,6 +18,20 @@ export const protect = async (req, res, next) => {
 
             if (!req.user) {
                 return res.status(401).json({ message: 'Not authorized, user no longer exists' });
+            }
+
+            req.tenantId = req.user.tenantId || null;
+
+            // If user is not SuperAdmin and is associated with a tenant, check tenant status
+            if (req.user.role !== 'SuperAdmin' && req.tenantId) {
+                const tenant = await Tenant.findById(req.tenantId);
+                if (tenant && (tenant.status === 'locked' || tenant.status === 'suspended')) {
+                    return res.status(403).json({
+                        message: 'Fadlan iska bixi lacagta/rukumada dugsiga! Account-ka dugsigaaga waa xiran yahay.',
+                        isTenantLocked: true,
+                        tenantName: tenant.name,
+                    });
+                }
             }
 
             next();
