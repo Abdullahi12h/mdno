@@ -8,7 +8,16 @@ import Teacher from '../models/Teacher.js';
 // @access  Private/SuperAdmin
 export const getTenants = async (req, res) => {
     try {
-        const tenants = await Tenant.find({}).sort({ createdAt: -1 });
+        console.log('[getTenants] Fetching all tenants...');
+        let tenants = await Tenant.find({}).sort({ createdAt: -1 });
+
+        // If no tenants exist in DB (e.g. initial setup before server restart), trigger seedSuperAdmin migration
+        if (tenants.length === 0) {
+            console.log('[getTenants] 0 tenants found. Triggering auto-seed migration...');
+            const { seedSuperAdmin } = await import('../utils/seedSuperAdmin.js');
+            await seedSuperAdmin();
+            tenants = await Tenant.find({}).sort({ createdAt: -1 });
+        }
 
         const tenantData = await Promise.all(
             tenants.map(async (tenant) => {
@@ -25,8 +34,10 @@ export const getTenants = async (req, res) => {
             })
         );
 
+        console.log(`[getTenants] Returning ${tenantData.length} tenants.`);
         res.json(tenantData);
     } catch (error) {
+        console.error('[getTenants] ERROR:', error);
         res.status(500).json({ message: error.message });
     }
 };
